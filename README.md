@@ -20,7 +20,7 @@ Here is part 1 , **make sure to follow this tutorial to set up the voice agent c
 🎥 [Watch here](https://youtu.be/An4NwL8QSQ4?si=v1dNDDonmpCG1Els)
 
 Here is part 2 **to use the memory system and the n8n MCP server follow this tutorial**:
-🎥 [Watch here](https://www.youtube.com/watch?v=gqmSKEUpRv8&ab_channel=Thanh-yDavidNguyen)
+🎥 [Watch here](https://www.youtube.com/watch?v=gqmSKEUpRv8&ab_channel=Thanh-yVenkateshNguyen)
 
 
 ---

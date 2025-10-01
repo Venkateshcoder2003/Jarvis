@@ -5,13 +5,14 @@ import json
 
 
 load_dotenv()
-user_name = 'David'
+user_name = 'Venkatesh'
 mem0 = MemoryClient()
 
 def add_memory():
     
     messages_formatted = [
-        {        "role": "user",
+        {   
+            "role": "user",
             "content": "I really like Linkin Park."
         },
         {
@@ -28,7 +29,7 @@ def add_memory():
         },
     ]
 
-    mem0.add(messages_formatted, user_id="David")
+    mem0.add(messages_formatted, user_id="Venkatesh")
 
 def get_memory_by_query():
     mem0 = MemoryClient()
