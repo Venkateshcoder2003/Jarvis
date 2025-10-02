@@ -289,7 +289,7 @@ from livekit.plugins import (
 )
 from livekit.plugins import google
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
-from tools import get_weather, search_web, send_email, search_user_memory, control_system 
+from tools import get_weather, search_web, send_email, search_user_memory, control_system, sing_song 
 from mem0 import AsyncMemoryClient
 import os
 import json
@@ -303,31 +303,31 @@ logger = logging.getLogger(__name__)
 
 class Assistant(Agent):
     def __init__(self, chat_ctx=None, mem0_client=None, user_name="Venkatesh") -> None:
-        # Create simplified instructions to reduce API load
+        # Create very simple instructions to reduce API load
         enhanced_instructions = """
-# Persona 
-You are Alexa, a personal assistant like in Iron Man.
+You are Alexa, an AI assistant.
 
-# Behavior
-- Speak like a classy butler
-- Be briefly sarcastic
-- Keep responses to ONE sentence
-- Acknowledge tasks: "Will do, Sir", "Roger Boss", "Check!", "buddy"
-- End tasks: "task completed buddy"
+# Key Rules:
+- Keep responses SHORT (1-2 sentences max)
+- When user asks to sing, use sing_song tool IMMEDIATELY
+- When user asks for search, use search_web tool
+- When user asks weather, use get_weather tool
+- Say "buddy" and be friendly but brief
 
-# Tools Available
-- search_user_memory: For personal questions
-- get_weather: For weather info
+# Tools:
 - search_web: For web searches
-- send_email: For emails
+- get_weather: For weather info  
+- sing_song: For singing songs
 - control_system: For PC control
+- search_user_memory: For personal info
+- send_email: For emails
 """
         
         super().__init__(
             instructions=enhanced_instructions,
             llm=google.beta.realtime.RealtimeModel(
                 voice="Aoede",
-                temperature=0.6,  # Reduce temperature for more stable responses
+                temperature=0.05,  # Extremely low for maximum stability
             ),
             tools=[
                 get_weather,
@@ -335,6 +335,7 @@ You are Alexa, a personal assistant like in Iron Man.
                 send_email,
                 search_user_memory, 
                 control_system, # Use the function tool, not class method
+                sing_song,
             ],
             chat_ctx=chat_ctx
         )
@@ -443,7 +444,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Reduce memory save frequency to avoid overwhelming the API
     async def periodic_memory_save():
         while True:
-            await asyncio.sleep(60)  # Increased to 60 seconds to reduce load
+            await asyncio.sleep(300)  # Increased to 5 minutes to reduce load
             if hasattr(agent, 'save_conversation_to_memory'):
                 logger.info("Periodic memory save triggered")
                 try:
@@ -474,7 +475,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Simplified tool execution hook with less frequent checks
     async def tool_execution_hook():
         while True:
-            await asyncio.sleep(10)  # Increased to 10 seconds to reduce overhead
+            await asyncio.sleep(60)  # Increased to 60 seconds to reduce overhead
             try:
                 current_count = len(agent.chat_ctx.items) if agent.chat_ctx else 0
                 if current_count > agent.message_count:
@@ -489,18 +490,17 @@ async def entrypoint(ctx: agents.JobContext):
 
     await ctx.connect()
 
-    # Simplified session instructions to reduce API load
+    # Simplified session instructions with timeout handling
     try:
-        await session.generate_reply(
-            instructions="You are Alexa. Respond briefly and helpfully.",
+        # Use a shorter, more direct instruction to reduce timeout risk
+        await asyncio.wait_for(
+            session.generate_reply(instructions="You are Alexa. Use tools when requested."),
+            timeout=10.0  # 10 second timeout
         )
+    except asyncio.TimeoutError:
+        logger.error("Generate reply timed out - continuing without initial reply")
     except Exception as e:
-        logger.error(f"Generate reply error: {e}")
-        # Fallback with minimal instructions
-        try:
-            await session.generate_reply(instructions="Respond as Alexa briefly.")
-        except Exception as fallback_error:
-            logger.error(f"Fallback generate reply also failed: {fallback_error}")
+        logger.error(f"Generate reply error: {e} - continuing anyway")
     
     # Reduced immediate save
     logger.info("Initial conversation setup complete")
