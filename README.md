@@ -1,6 +1,6 @@
 # 🧠 Friday - Your Personal AI Assistant - Part 2
 
-This is a Python-based AI assistant inspired by *Jarvis*, capable of:
+This is a Python-based AI assistant inspired by *Alexa*, capable of:
 
 - 🔍 Searching the web  
 - 🌤️ Weather checking

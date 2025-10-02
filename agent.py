@@ -289,7 +289,7 @@ from livekit.plugins import (
 )
 from livekit.plugins import google
 from prompts import AGENT_INSTRUCTION, SESSION_INSTRUCTION
-from tools import get_weather, search_web, send_email, search_user_memory  # Import the memory tool
+from tools import get_weather, search_web, send_email, search_user_memory, control_system 
 from mem0 import AsyncMemoryClient
 import os
 import json
@@ -303,29 +303,38 @@ logger = logging.getLogger(__name__)
 
 class Assistant(Agent):
     def __init__(self, chat_ctx=None, mem0_client=None, user_name="Venkatesh") -> None:
-        # Create enhanced instructions that include memory search
-        enhanced_instructions = AGENT_INSTRUCTION + """
+        # Create simplified instructions to reduce API load
+        enhanced_instructions = """
+# Persona 
+You are Alexa, a personal assistant like in Iron Man.
 
-# Memory System Instructions
-- You have access to a memory system that stores previous conversations
-- Before responding to personal questions, always search your memory first
-- Use the search_user_memory tool to find relevant information about the user
-- If you find relevant memories, use that information in your response
-- Always try to be helpful using stored knowledge about the user
-- After every meaningful conversation, your memory will be updated automatically
+# Behavior
+- Speak like a classy butler
+- Be briefly sarcastic
+- Keep responses to ONE sentence
+- Acknowledge tasks: "Will do, Sir", "Roger Boss", "Check!", "buddy"
+- End tasks: "task completed buddy"
+
+# Tools Available
+- search_user_memory: For personal questions
+- get_weather: For weather info
+- search_web: For web searches
+- send_email: For emails
+- control_system: For PC control
 """
         
         super().__init__(
             instructions=enhanced_instructions,
             llm=google.beta.realtime.RealtimeModel(
                 voice="Aoede",
-                temperature=0.8,
+                temperature=0.6,  # Reduce temperature for more stable responses
             ),
             tools=[
                 get_weather,
                 search_web,
                 send_email,
-                search_user_memory,  # Use the function tool, not class method
+                search_user_memory, 
+                control_system, # Use the function tool, not class method
             ],
             chat_ctx=chat_ctx
         )
@@ -362,7 +371,7 @@ class Assistant(Agent):
                     not content_str.startswith("User information from previous") and
                     not content_str.startswith("I found this information") and
                     not content_str.startswith("I don't have any stored") and
-                    not content_str.startswith("Hi Venkatesh, I am Jarvis") and
+                    not content_str.startswith("Hi Venkatesh, I am Alexa") and
                     content_str.strip() and
                     len(content_str.strip()) > 3):  # Only save meaningful content
                     messages_formatted.append({
@@ -431,13 +440,16 @@ async def entrypoint(ctx: agents.JobContext):
     
     session = AgentSession()
 
-    # Periodic memory save function
+    # Reduce memory save frequency to avoid overwhelming the API
     async def periodic_memory_save():
         while True:
-            await asyncio.sleep(30)  # Save every 30 seconds
+            await asyncio.sleep(60)  # Increased to 60 seconds to reduce load
             if hasattr(agent, 'save_conversation_to_memory'):
                 logger.info("Periodic memory save triggered")
-                await agent.save_conversation_to_memory()
+                try:
+                    await agent.save_conversation_to_memory()
+                except Exception as e:
+                    logger.error(f"Periodic memory save failed: {e}")
 
     # Shutdown hook for final save
     async def shutdown_hook():
@@ -459,29 +471,44 @@ async def entrypoint(ctx: agents.JobContext):
     if mem0:
         asyncio.create_task(periodic_memory_save())
     
-    # Add immediate save after tool usage
+    # Simplified tool execution hook with less frequent checks
     async def tool_execution_hook():
         while True:
-            await asyncio.sleep(5)  # Check every 5 seconds for new content
-            current_count = len(agent.chat_ctx.items) if agent.chat_ctx else 0
-            if current_count > agent.message_count:
-                agent.message_count = current_count
-                logger.info("Tool execution detected, saving memory...")
-                await agent.save_conversation_to_memory()
+            await asyncio.sleep(10)  # Increased to 10 seconds to reduce overhead
+            try:
+                current_count = len(agent.chat_ctx.items) if agent.chat_ctx else 0
+                if current_count > agent.message_count:
+                    agent.message_count = current_count
+                    logger.info("Tool execution detected, saving memory...")
+                    await agent.save_conversation_to_memory()
+            except Exception as e:
+                logger.error(f"Tool execution hook error: {e}")
     
     if mem0:
         asyncio.create_task(tool_execution_hook())
 
     await ctx.connect()
 
-    await session.generate_reply(
-        instructions=SESSION_INSTRUCTION + "\n\nRemember: Always search your memory when users ask about personal information or preferences. Use the search_user_memory tool to find relevant information. I will remember our conversation for future reference.",
-    )
+    # Simplified session instructions to reduce API load
+    try:
+        await session.generate_reply(
+            instructions="You are Alexa. Respond briefly and helpfully.",
+        )
+    except Exception as e:
+        logger.error(f"Generate reply error: {e}")
+        # Fallback with minimal instructions
+        try:
+            await session.generate_reply(instructions="Respond as Alexa briefly.")
+        except Exception as fallback_error:
+            logger.error(f"Fallback generate reply also failed: {fallback_error}")
     
-    # Immediate save after initial conversation
-    logger.info("Initial conversation setup complete, saving any existing context...")
-    if hasattr(agent, 'save_conversation_to_memory'):
-        await agent.save_conversation_to_memory()
+    # Reduced immediate save
+    logger.info("Initial conversation setup complete")
+    try:
+        if hasattr(agent, 'save_conversation_to_memory'):
+            await agent.save_conversation_to_memory()
+    except Exception as e:
+        logger.error(f"Initial memory save failed: {e}")
 
     # Add shutdown callback
     ctx.add_shutdown_callback(shutdown_hook)

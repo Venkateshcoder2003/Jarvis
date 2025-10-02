@@ -9,3 +9,10 @@ langchain_community
 requests
 python-dotenv
 pydantic-ai-slim[openai,mcp]
+beautifulsoup4
+pyautogui
+psutil
+pycaw
+comtypes
+pillow
+pygetwindow
